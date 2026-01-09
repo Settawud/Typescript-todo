@@ -130,7 +130,7 @@ class KanbanUI {
         if(doneList) doneList.innerHTML = '';
 
         // 3 ดึงข้อมูลทั้งหมดมาวาด
-        const tasks = this.taskManager.getAllTask().forEach(task => {
+        this.taskManager.getAllTask().forEach(task => {
             // สร้าง Element <div> เป็นการ์ด
             const card = document.createElement('div');
             card.className = 'task-card'; // ใส่ class ให้ CSS

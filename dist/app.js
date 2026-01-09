@@ -85,7 +85,7 @@ class KanbanUI {
             doingList.innerHTML = '';
         if (doneList)
             doneList.innerHTML = '';
-        const tasks = this.taskManager.getAllTask().forEach(task => {
+        this.taskManager.getAllTask().forEach(task => {
             const card = document.createElement('div');
             card.className = 'task-card';
             card.innerHTML = `
