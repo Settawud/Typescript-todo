@@ -1,0 +1,189 @@
+/* 🎨 1. CSS Variables: กำหนดค่าสีและธีมไว้ที่เดียว แก้ทีเดียวเปลี่ยนทั้งเว็บ */
+:root {
+    --primary-color: #6366f1;
+    /* สีม่วงหลัก */
+    --bg-color: #f3f4f6;
+    /* สีพื้นหลังเว็บ (เทาอ่อน) */
+    --column-bg: #e5e7eb;
+    /* สีพื้นหลังของ Column */
+    --card-bg: #ffffff;
+    /* สีพื้นหลังของการ์ด */
+    --text-color: #1f2937;
+    /* สีตัวอักษร */
+}
+
+/* 2. Global Layout: จัดหน้าเว็บหลัก */
+body {
+    font-family: 'Segoe UI', sans-serif;
+    /* ฟอนต์สวยๆ */
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    display: flex;
+    /* ใช้ Flexbox จัด layout ทั้งหน้า */
+    flex-direction: column;
+    /* เรียงจากบนลงล่าง (Header -> Board -> Footer) */
+    height: 100vh;
+    /* ความสูงเต็มจอ 100% */
+}
+
+/* 3. Header Styling */
+.header {
+    background: white;
+    padding: 1rem 2rem;
+    display: flex;
+    /* ใช้ Flexbox */
+    justify-content: space-between;
+    /* ดันลูกๆ ให้ห่างกันสุดขอบซ้ายขวา */
+    align-items: center;
+    /* จัดให้อยู่กึ่งกลางแนวตั้ง */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    /* เงาบางๆ */
+}
+
+/* ปุ่มกดทั่วไป */
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* 4. Kanban Board Layout (พระเอกของเรา) */
+.kanban-board {
+    display: flex;
+    /* เรียง Column แนวนอน */
+    gap: 1.5rem;
+    /* ระยะห่างระหว่าง Column */
+    padding: 2rem;
+    flex: 1;
+    /* ขยายพื้นที่ให้เต็มส่วนที่เหลือของจอ */
+    overflow-x: auto;
+    /* ถ้าจอเล็ก ให้เลื่อนซ้ายขวาได้ */
+}
+
+/* สไตล์ของแต่ละ Column (Todo, Doing, Done) */
+.column {
+    flex: 1;
+    /* ให้ทุก Column กว้างเท่าๆ กัน */
+    background: var(--column-bg);
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    /* ข้างใน column ให้เรียงการ์ดลงมาแนวตั้ง */
+    min-width: 280px;
+    /* กันไม่ให้ column บีบเล็กเกินไป */
+}
+
+/* Effect ตอนลากของมาจ่อ (Drag Over) */
+.column.drag-over {
+    background: #dbeafe;
+    /* เปลี่ยนเป็นสีฟ้าอ่อน */
+    border: 2px dashed var(--primary-color);
+    /* เส้นประ */
+}
+
+/* 5. Task Card Styling (การ์ดงาน) */
+.task-card {
+    background: var(--card-bg);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    /* เงานูนมีมิติ */
+    cursor: grab;
+    /* เมาส์เป็นรูปมือจับ */
+    transition: transform 0.2s;
+    /* เอฟเฟกต์ตอนขยับ */
+}
+
+.task-card:hover {
+    transform: translateY(-2px);
+    /* เอาเมาส์ชี้แล้วลอยขึ้นนิดนึงดู active */
+}
+
+/* ตอนกำลังลาก (Dragging) */
+.task-card.dragging {
+    opacity: 0.5;
+    border: 2px dashed #9ca3af;
+}
+
+/* ปุ่มลบ (ที่เราเพิ่งแก้กัน) */
+.delete-btn {
+    background: transparent;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.2s ease;
+
+    /* เทคนิคทำปุ่มจัตุรัส */
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 6px;
+}
+
+.delete-btn:hover {
+    opacity: 1;
+    background-color: #fee2e2;
+    transform: scale(1.1);
+}
+
+/* 6. Modal (Popup) Styling */
+.modal {
+    display: none;
+    /* ซ่อนไว้ก่อน */
+    position: fixed;
+    /* ลอยทับหน้าจอ */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    /* พื้นหลังสีดำจางๆ */
+    justify-content: center;
+    /* จัดกลางแนวนอน */
+    align-items: center;
+    /* จัดกลางแนวตั้ง */
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    width: 400px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+/* Input Styles ในฟอร์ม */
+input,
+textarea,
+select {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    /* ให้ padding ไม่ดันขนาดกล่อง */
+}
+
+.close-btn {
+    float: right;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close-btn:hover {
+    color: black;
+}

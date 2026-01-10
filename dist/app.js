@@ -31,6 +31,14 @@ class TaskManager {
     getAllTask() {
         return this.tasks;
     }
+    updateTaskStatus(id, newStatus) {
+        const taskIndex = this.tasks.findIndex(t => t.id === id);
+        if (taskIndex !== -1) {
+            this.tasks[taskIndex].status = newStatus;
+            this.saveToStorage();
+            console.log("อัปเดตสถานะเรียบร้อย", this.tasks[taskIndex]);
+        }
+    }
     saveToStorage() {
         localStorage.setItem('my-kanban-tasks', JSON.stringify(this.tasks));
     }
@@ -40,9 +48,13 @@ class TaskManager {
             this.tasks = JSON.parse(data);
         }
     }
+    deleteTask(id) {
+        this.tasks = this.tasks.filter(t => t.id !== id);
+        this.saveToStorage();
+        console.log('ลบงานแล้ว ID:', id);
+    }
 }
 const manager = new TaskManager();
-manager.addTask("เขียนโค้ด", "สนุกจังเลย", Priority.HIGH);
 class KanbanUI {
     constructor() {
         this.taskManager = new TaskManager();
@@ -56,6 +68,7 @@ class KanbanUI {
             if (this.modal)
                 this.modal.style.display = 'flex';
         });
+        this.setupDragDrop();
         const closeBtn = document.querySelector('.close-btn');
         closeBtn === null || closeBtn === void 0 ? void 0 : closeBtn.addEventListener('click', () => {
             if (this.modal)
@@ -88,14 +101,30 @@ class KanbanUI {
         this.taskManager.getAllTask().forEach(task => {
             const card = document.createElement('div');
             card.className = 'task-card';
+            card.draggable = true;
+            card.addEventListener('dragstart', (e) => {
+                var _a;
+                (_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.setData('text/plain', task.id);
+                card.classList.add('dragging');
+            });
             card.innerHTML = `
-                <h3>${task.title}</h3>
+                <div style="display: flex; justify-content: space-between;">
+                    <h3>${task.title}</h3>
+                    <button class="delete-btn">❌</button>
+                </div>
                 <p>${task.description}</p>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                     <small>Priority: <b>${task.priority}</b></small>
                     <small>${new Date(task.createdAt).toLocaleDateString()}</small>
                 </div>
             `;
+            const deleteBtn = card.querySelector('.delete-btn');
+            deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.addEventListener('click', () => {
+                if (confirm("ต้องการลบงานนี้จริงไหม?")) {
+                    this.taskManager.deleteTask(task.id);
+                    this.render();
+                }
+            });
             if (task.status === Status.TODO && todoList) {
                 todoList.appendChild(card);
             }
@@ -105,6 +134,28 @@ class KanbanUI {
             else if (task.status === Status.DONE && doneList) {
                 doneList.appendChild(card);
             }
+        });
+    }
+    setupDragDrop() {
+        const columns = document.querySelectorAll('.column');
+        columns.forEach(col => {
+            col.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                col.classList.add('drag-over');
+            });
+            col.addEventListener('dragleave', () => {
+                col.classList.remove('drag-over');
+            });
+            col.addEventListener('drop', (e) => {
+                e.preventDefault();
+                col.classList.remove('drag-over');
+                const taskId = e.dataTransfer.getData('text/plain');
+                const status = col.getAttribute('data-status');
+                if (taskId && status) {
+                    this.taskManager.updateTaskStatus(taskId, status);
+                    this.render();
+                }
+            });
         });
     }
 }
