@@ -168,7 +168,12 @@ class KanbanUI {
                 </div>
                 <p>${task.description}</p>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                    <small>Priority: <b>${task.priority}</b></small>
+                    <small>
+                        Priority: 
+                        <span class="priority-badge priority-${task.priority}">
+                            ${task.priority}
+                        </span>
+                    </small>
                     <small>${new Date(task.createdAt).toLocaleDateString()}</small>
                 </div>
             `;

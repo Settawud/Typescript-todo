@@ -187,3 +187,24 @@ select {
 .close-btn:hover {
     color: black;
 }
+
+/* Badge สำหรับ Priority */
+.priority-badge {
+    padding: 2px 8px;
+    border-radius: 12px; /* ทำขอบมนๆ เป็นแคปซูล */
+    color: white; /* ตัวหนังสือสีขาว */
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase; /* ตัวพิมพ์ใหญ่ทั้งหมด */
+}
+
+/* แยกสีตามระดับ */
+.priority-low {
+    background-color: #10b981; /* เขียว */
+}
+.priority-medium {
+    background-color: #f59e0b; /* ส้ม */
+}
+.priority-high {
+    background-color: #ef4444; /* แดง */
+}
