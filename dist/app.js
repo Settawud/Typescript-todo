@@ -60,6 +60,21 @@ class TaskManager {
             console.log('Status updated:', id, newStatus);
         }
     }
+    async editTask(id, updates) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task) {
+            task.title = updates.title;
+            task.description = updates.description;
+            task.priority = updates.priority;
+        }
+        const { error } = await db.from('tasks').update(updates).eq('id', id);
+        if (error) {
+            console.error("Error editing task:", error);
+        }
+        else {
+            console.log("Task edited:", id);
+        }
+    }
     async deleteTask(id) {
         const { error } = await db.from('tasks').delete().eq('id', id);
         if (!error) {
@@ -74,6 +89,7 @@ class TaskManager {
 const manager = new TaskManager();
 class KanbanUI {
     constructor() {
+        this.currentEditId = null;
         this.taskManager = new TaskManager();
         this.modal = document.getElementById('task-modal');
         this.init();
@@ -85,8 +101,8 @@ class KanbanUI {
         this.render();
         const addBtn = document.getElementById('add-task-btn');
         addBtn === null || addBtn === void 0 ? void 0 : addBtn.addEventListener('click', () => {
-            if (this.modal)
-                this.modal.style.display = 'flex';
+            this.currentEditId = null;
+            this.openModal();
         });
         this.setupDragDrop();
         const closeBtn = document.querySelector('.close-btn');
@@ -100,12 +116,43 @@ class KanbanUI {
             const titleInput = document.getElementById('task-title');
             const descInput = document.getElementById('task-desc');
             const priorityInput = document.getElementById('task-priority');
-            await this.taskManager.addTask(titleInput.value, descInput.value, priorityInput.value);
+            if (this.currentEditId) {
+                await this.taskManager.editTask(this.currentEditId, {
+                    title: titleInput.value,
+                    description: descInput.value,
+                    priority: priorityInput.value
+                });
+            }
+            else {
+                await this.taskManager.addTask(titleInput.value, descInput.value, priorityInput.value);
+            }
             if (this.modal)
                 this.modal.style.display = 'none';
             form.reset();
+            this.currentEditId = null;
             this.render();
         });
+    }
+    openModal() {
+        if (this.modal) {
+            this.modal.style.display = 'flex';
+            const modalTitle = this.modal.querySelector('h2');
+            if (modalTitle)
+                modalTitle.innerText = this.currentEditId ? 'แก้ไขงาน' : 'เพิ่มงาน';
+        }
+    }
+    openEditModal(task) {
+        this.currentEditId = task.id;
+        this.openModal();
+        const titleInput = document.getElementById('task-title');
+        const descInput = document.getElementById('task-desc');
+        const priorityInput = document.getElementById('task-priority');
+        if (titleInput)
+            titleInput.value = task.title;
+        if (descInput)
+            descInput.value = task.description;
+        if (priorityInput)
+            priorityInput.value = task.priority;
     }
     formatDate(isoString) {
         const date = new Date(isoString);
@@ -138,7 +185,10 @@ class KanbanUI {
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between;">
                     <h3>${task.title}</h3>
-                    <button class="delete-btn">❌</button>
+                    <div class='actions'>
+                        <button class='edit-btn'>✏️</button>
+                        <button class='delete-btn'>❌</button>
+                    </div>
                 </div>
                 <p>${task.description}</p>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px;">
@@ -157,6 +207,11 @@ class KanbanUI {
                     await this.taskManager.deleteTask(task.id);
                     this.render();
                 }
+            });
+            const editBtn = card.querySelector('.edit-btn');
+            editBtn === null || editBtn === void 0 ? void 0 : editBtn.addEventListener('click', async () => {
+                console.log("กำลังแก้ไขงาน ID:", task.id);
+                this.openEditModal(task);
             });
             if (task.status === Status.TODO && todoList) {
                 todoList.appendChild(card);

@@ -91,6 +91,27 @@ class TaskManager {
         }
     }
 
+    // 5 แก้ไขรายละเอียดงาน (Title, Description, Priority)
+    public async editTask(id: string, updates: { title: string, description: string, priority: Priority }):
+        Promise<void> {
+        // 1. อัปเดตใน local Grid ของเราก่อน (ให้ UI ลื่น)
+        const task = this.tasks.find(t => t.id === id); // ✅ แก้ให้ถูกต้อง
+        if (task) {
+            task.title = updates.title;
+            task.description = updates.description;
+            task.priority = updates.priority;
+        }
+
+        // 2. ส่งไปอัปเดตที่ cloud จริงๆ (ถ้าเนตหลุดค่อยมา rollback ทีหลัง)
+        const { error } = await db.from('tasks').update(updates).eq('id', id);
+
+        if (error) {
+            console.error("Error editing task:", error);
+        } else {
+            console.log("Task edited:", id);
+        }
+    }
+
     // 3 ลบงาน 
     public async deleteTask(id: string): Promise<void> {
         // ลบ row ที่มี id ตรงกัน
@@ -114,6 +135,7 @@ const manager = new TaskManager();
 class KanbanUI {
     private taskManager: TaskManager;
     private modal: HTMLElement | null; // กล่อง Popup
+    private currentEditId: string | null = null;
 
     constructor() {
         this.taskManager = new TaskManager();
@@ -132,7 +154,8 @@ class KanbanUI {
         // จัดการปุ่ม "เพิ่ม Task"
         const addBtn = document.getElementById('add-task-btn');
         addBtn?.addEventListener('click', () => {
-            if (this.modal) this.modal.style.display = 'flex';
+            this.currentEditId = null;
+            this.openModal();
         });
 
         // จัดการปุ่มปิด Modal
@@ -153,17 +176,51 @@ class KanbanUI {
             const priorityInput = document.getElementById('task-priority') as HTMLSelectElement;
 
             // เรียกใช้ Logic เพื่อเพิ่มงานจริงๆ
-            await this.taskManager.addTask(
-                titleInput.value,
-                descInput.value,
-                priorityInput.value as Priority // แปลง string เป็น Enum
-            );
+            if (this.currentEditId) {
+                //กรณีแก้ไข: เรียก EditTask
+                await this.taskManager.editTask(this.currentEditId, {
+                    title: titleInput.value,
+                    description: descInput.value,
+                    priority: priorityInput.value as Priority
+                });
+            } else {
+                // กรณ๊เพิ่มใหม่ เรียก AddTask
+                await this.taskManager.addTask(
+                    titleInput.value,
+                    descInput.value,
+                    priorityInput.value as Priority // แปลง string เป็น Enum
+                );
+            }
 
             // ปิด Modal และวาดหน้าจอใหม่
             if (this.modal) this.modal.style.display = 'none';
             form.reset(); //ล้างช่องกรอก
+            this.currentEditId = null; // reset id กลับ
             this.render(); // สั่งวาดการ์ดใหม่
         });
+    }
+
+    private openModal() {
+        if (this.modal) {
+            this.modal.style.display = 'flex';
+
+            const modalTitle = this.modal.querySelector('h2');
+            if (modalTitle) modalTitle.innerText = this.currentEditId ? 'แก้ไขงาน' : 'เพิ่มงาน';
+        }
+    }
+
+    private openEditModal(task: Task) {
+        this.currentEditId = task.id; // จำไว้ว่ากำลังแก้งานไหน
+        this.openModal(); //เปิดกล่อง
+
+        // เอางานเก่ามาหยอดใส่ช่อง
+        const titleInput = document.getElementById('task-title') as HTMLInputElement;
+        const descInput = document.getElementById('task-desc') as HTMLTextAreaElement;
+        const priorityInput = document.getElementById('task-priority') as HTMLSelectElement;
+
+        if (titleInput) titleInput.value = task.title;
+        if (descInput) descInput.value = task.description;
+        if (priorityInput) priorityInput.value = task.priority;
     }
 
     // Helper: แปลงวันที่เป็นแบบไทย (เช่น 11 มกราคม 2569)
@@ -206,7 +263,10 @@ class KanbanUI {
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between;">
                     <h3>${task.title}</h3>
-                    <button class="delete-btn">❌</button>
+                    <div class='actions'>
+                        <button class='edit-btn'>✏️</button>
+                        <button class='delete-btn'>❌</button>
+                    </div>
                 </div>
                 <p>${task.description}</p>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px;">
@@ -228,6 +288,11 @@ class KanbanUI {
                     this.render(); // สั่งวาดหน้าจอใหม่
                 }
             });
+            const editBtn = card.querySelector('.edit-btn');
+            editBtn?.addEventListener('click', async () => {
+                console.log("กำลังแก้ไขงาน ID:", task.id);
+                this.openEditModal(task);
+            })
 
             // 4 เช็ค status แล้วหยอดลงช่องที่ถูกต้อง
             if (task.status === Status.TODO && todoList) {

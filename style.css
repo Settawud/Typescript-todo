@@ -59,6 +59,7 @@ body {
     font-weight: 900;
     color: #6b7280;
 }
+
 /* ปุ่มกดทั่วไป */
 .btn-primary {
     background: var(--primary-color);
@@ -131,8 +132,17 @@ body {
     border-radius: 8px;
 }
 
-/* ปุ่มลบ (ที่เราเพิ่งแก้กัน) */
-.delete-btn {
+/* Group Action Buttons */
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    /* ระยะห่างระหว่างปุ่ม */
+    align-items: center;
+}
+
+/* ปุ่มลบ และ ปุ่มแก้ไข (ใช้สไตล์ร่วมกัน) */
+.delete-btn,
+.edit-btn {
     background: transparent;
     border: none;
     font-size: 1rem;
@@ -153,6 +163,14 @@ body {
 .delete-btn:hover {
     opacity: 1;
     background-color: #fee2e2;
+    /* แดงอ่อน */
+    transform: scale(1.1);
+}
+
+.edit-btn:hover {
+    opacity: 1;
+    background-color: #dbeafe;
+    /* ฟ้าอ่อน */
     transform: scale(1.1);
 }
 
