@@ -50,10 +50,11 @@ class TaskManager {
     public async addTask(title: string, description: string, priority: Priority): Promise<void> {
         const { data, error } = await db.from('tasks').insert([
             {
-                title:title,
+                title: title,
                 description: description,
                 priority: priority,
                 status: Status.TODO,
+                created_at: new Date().toISOString(), // ✅ สร้างเวลาปัจจุบันส่งไปด้วย
             }
         ]).select(); // สำคํญ!: สร้างเสร็จแล้วขอข้อมูลที่เพิ่งสร้างกลับมาด้วย (จะได้ ID)
 
@@ -81,11 +82,11 @@ class TaskManager {
         if (task) task.status = newStatus;
 
         // ส่งไปอัปเดตที่ cloud จริงๆ (ถ้าเน็ตหลุดค่อยมา rollback ทีหลัง)
-        const { error } = await db.from('tasks').update({ status: newStatus}).eq('id', id);
+        const { error } = await db.from('tasks').update({ status: newStatus }).eq('id', id);
         if (error) {
             console.log('Error updating:', error);
             // ให้ดีถ้่าพัง return ค่าด้วย เดี๋ยวค่อยทำ
-        }else {
+        } else {
             console.log('Status updated:', id, newStatus);
         }
     }
@@ -99,7 +100,7 @@ class TaskManager {
             // ถ้าลบใน Cloud ผ่าน ค่อยมาลบในตัวแปร local
             this.tasks = this.tasks.filter(t => t.id !== id);
             console.log("Task deleted:", id);
-        }else {
+        } else {
             console.log("Error deleting", error);
         }
     }
@@ -245,7 +246,7 @@ class KanbanUI {
             });
 
             //3 เมื่อปล่อย drop ลงช่อง
-            col.addEventListener('drop', async(e: any) => {
+            col.addEventListener('drop', async (e: any) => {
                 e.preventDefault();
                 col.classList.remove('drag-over');
 

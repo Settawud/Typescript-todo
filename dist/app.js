@@ -33,6 +33,7 @@ class TaskManager {
                 description: description,
                 priority: priority,
                 status: Status.TODO,
+                created_at: new Date().toISOString(),
             }
         ]).select();
         if (error) {
