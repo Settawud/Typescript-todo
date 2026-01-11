@@ -49,6 +49,16 @@ body {
     /* เงาบางๆ */
 }
 
+.footer {
+    background: white;
+    padding: 1rem 2rem;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+    /* เงาบางๆ */
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 900;
+    color: #6b7280;
+}
 /* ปุ่มกดทั่วไป */
 .btn-primary {
     background: var(--primary-color);
