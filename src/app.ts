@@ -166,6 +166,16 @@ class KanbanUI {
         });
     }
 
+    // Helper: แปลงวันที่เป็นแบบไทย (เช่น 11 มกราคม 2569)
+    private formatDate(isoString: string): string {
+        const date = new Date(isoString);
+        return date.toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+    }
+
     // function วาดการ์ดงาน (จะมาเติมทีหลัง)
     private render(): void {
         console.log("Rendering tasks...", this.taskManager.getAllTask());
@@ -206,7 +216,7 @@ class KanbanUI {
                             ${task.priority}
                         </span>
                     </small>
-                    <small>${new Date(task.created_at).toLocaleDateString()}</small>
+                    <small>${this.formatDate(task.created_at)}</small>
                 </div>
             `;
 

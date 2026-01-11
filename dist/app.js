@@ -107,6 +107,14 @@ class KanbanUI {
             this.render();
         });
     }
+    formatDate(isoString) {
+        const date = new Date(isoString);
+        return date.toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+    }
     render() {
         console.log("Rendering tasks...", this.taskManager.getAllTask());
         const todoList = document.getElementById('todo-list');
@@ -140,7 +148,7 @@ class KanbanUI {
                             ${task.priority}
                         </span>
                     </small>
-                    <small>${new Date(task.created_at).toLocaleDateString()}</small>
+                    <small>${this.formatDate(task.created_at)}</small>
                 </div>
             `;
             const deleteBtn = card.querySelector('.delete-btn');

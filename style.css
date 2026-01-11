@@ -23,8 +23,16 @@ body {
     /* ใช้ Flexbox จัด layout ทั้งหน้า */
     flex-direction: column;
     /* เรียงจากบนลงล่าง (Header -> Board -> Footer) */
-    height: 100vh;
-    /* ความสูงเต็มจอ 100% */
+    min-height: 100vh;
+    /* Fallback สำหรับ browser เก่า */
+    min-height: 100dvh;
+    /* Dynamic Height: แก้ปัญหา address bar ในมือถือ */
+
+    /* Support Safe Area (ติ่ง iPhone) */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 /* 3. Header Styling */
