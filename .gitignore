@@ -1,0 +1,17 @@
+# Node modules
+node_modules/
+
+# Mac OS
+.DS_Store
+
+# Distribution / Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Editor directories
+.vscode/
+.idea/

@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TypeScript Kanban</title>
     <link rel="stylesheet" href="style.css">
+    <!-- ✅ 1. เพิ่ม Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -21,16 +23,16 @@
                 <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
             </div>
         </section>
-        
-         <section class="column" id="doing-col" data-status="doing">
+
+        <section class="column" id="doing-col" data-status="doing">
             <h2>🧑🏻‍💻 กำลังทำ</h2>
             <div class="task-list" id="doing-list">
-            <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
+                <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
 
             </div>
         </section>
 
-         <section class="column" id="done-col" data-status="done">
+        <section class="column" id="done-col" data-status="done">
             <h2>✅ เสร็จแล้ว</h2>
             <div class="task-list" id="done-list">
                 <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
@@ -39,30 +41,30 @@
     </main>
 
     <!-- Modal (Popup Form) -->
-     <div id="task-modal" class="modal">
+    <div id="task-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn">&times;</span>
             <h2>เพิ่มงานใหม่</h2>
             <form id="task-form">
 
                 <!-- 1 ชื่อ Task -->
-                 <input type="text" id="task-title" placeholder="ชื่องาน..." required>
+                <input type="text" id="task-title" placeholder="ชื่องาน..." required>
 
-                 <!-- 2 รายละเอียด -->
-                 <textarea id="task-desc" placeholder="รายละเอียด..."></textarea>
+                <!-- 2 รายละเอียด -->
+                <textarea id="task-desc" placeholder="รายละเอียด..."></textarea>
 
                 <!-- 3 ความสำคัญ -->
-                 <select id="task-priority">
+                <select id="task-priority">
                     <option value="low">ต่ำ</option>
                     <option value="medium">กลาง</option>
                     <option value="high">สูง</option>
-                 </select>
+                </select>
 
-                 <!-- 4 ปุ่มบันทึก -->
-                  <button type="submit">บันทึก</button>
+                <!-- 4 ปุ่มบันทึก -->
+                <button type="submit">บันทึก</button>
             </form>
         </div>
-     </div>
+    </div>
 
     <footer class="footer">
         <p>Dev by Best!</p>

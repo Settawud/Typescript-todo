@@ -1,3 +1,6 @@
+const SUPABASE_URL = 'https://ynfaxtwmrmpomwqhzlrm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InluZmF4dHdtcm1wb213cWh6bHJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNTcxMTQsImV4cCI6MjA4MzYzMzExNH0.c8RmSQMGRqvpMuaTSYeXjU6zWzIEV5HRIOf3qJtgeBI';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 var Priority;
 (function (Priority) {
     Priority["LOW"] = "low";
@@ -13,45 +16,58 @@ var Status;
 class TaskManager {
     constructor() {
         this.tasks = [];
-        this.loadFromStorage();
     }
-    addTask(title, description, priority) {
-        const newTask = {
-            id: Date.now().toString(),
-            title: title,
-            description: description,
-            priority: priority,
-            status: Status.TODO,
-            createdAt: new Date()
-        };
-        this.tasks.push(newTask);
-        this.saveToStorage();
-        console.log("เพิ่มงานแล้ว", newTask);
+    async fetchTasks() {
+        const { data, error } = await db.from('tasks').select('*').order('created_at', { ascending: true });
+        if (error) {
+            console.error('โหลดข้อมูลไม่สำเร็จ:', error);
+            return;
+        }
+        this.tasks = data || [];
+        console.log("โหลดงานจาก Cloud แล้ว", this.tasks);
+    }
+    async addTask(title, description, priority) {
+        const { data, error } = await db.from('tasks').insert([
+            {
+                title: title,
+                description: description,
+                priority: priority,
+                status: Status.TODO,
+            }
+        ]).select();
+        if (error) {
+            console.log("เพิ่มงานไม่สำเร็จ", error);
+            return;
+        }
+        if (data) {
+            this.tasks.push(data[0]);
+            console.log("Task added:", data[0]);
+        }
     }
     getAllTask() {
         return this.tasks;
     }
-    updateTaskStatus(id, newStatus) {
-        const taskIndex = this.tasks.findIndex(t => t.id === id);
-        if (taskIndex !== -1) {
-            this.tasks[taskIndex].status = newStatus;
-            this.saveToStorage();
-            console.log("อัปเดตสถานะเรียบร้อย", this.tasks[taskIndex]);
+    async updateTaskStatus(id, newStatus) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task)
+            task.status = newStatus;
+        const { error } = await db.from('tasks').update({ status: newStatus }).eq('id', id);
+        if (error) {
+            console.log('Error updating:', error);
+        }
+        else {
+            console.log('Status updated:', id, newStatus);
         }
     }
-    saveToStorage() {
-        localStorage.setItem('my-kanban-tasks', JSON.stringify(this.tasks));
-    }
-    loadFromStorage() {
-        const data = localStorage.getItem('my-kanban-tasks');
-        if (data) {
-            this.tasks = JSON.parse(data);
+    async deleteTask(id) {
+        const { error } = await db.from('tasks').delete().eq('id', id);
+        if (!error) {
+            this.tasks = this.tasks.filter(t => t.id !== id);
+            console.log("Task deleted:", id);
         }
-    }
-    deleteTask(id) {
-        this.tasks = this.tasks.filter(t => t.id !== id);
-        this.saveToStorage();
-        console.log('ลบงานแล้ว ID:', id);
+        else {
+            console.log("Error deleting", error);
+        }
     }
 }
 const manager = new TaskManager();
@@ -62,7 +78,10 @@ class KanbanUI {
         this.init();
         this.render();
     }
-    init() {
+    async init() {
+        console.log('Loading tasks from Supabase...');
+        await this.taskManager.fetchTasks();
+        this.render();
         const addBtn = document.getElementById('add-task-btn');
         addBtn === null || addBtn === void 0 ? void 0 : addBtn.addEventListener('click', () => {
             if (this.modal)
@@ -75,12 +94,12 @@ class KanbanUI {
                 this.modal.style.display = 'none';
         });
         const form = document.getElementById('task-form');
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const titleInput = document.getElementById('task-title');
             const descInput = document.getElementById('task-desc');
             const priorityInput = document.getElementById('task-priority');
-            this.taskManager.addTask(titleInput.value, descInput.value, priorityInput.value);
+            await this.taskManager.addTask(titleInput.value, descInput.value, priorityInput.value);
             if (this.modal)
                 this.modal.style.display = 'none';
             form.reset();
@@ -120,13 +139,13 @@ class KanbanUI {
                             ${task.priority}
                         </span>
                     </small>
-                    <small>${new Date(task.createdAt).toLocaleDateString()}</small>
+                    <small>${new Date(task.created_at).toLocaleDateString()}</small>
                 </div>
             `;
             const deleteBtn = card.querySelector('.delete-btn');
-            deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.addEventListener('click', () => {
+            deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.addEventListener('click', async () => {
                 if (confirm("ต้องการลบงานนี้จริงไหม?")) {
-                    this.taskManager.deleteTask(task.id);
+                    await this.taskManager.deleteTask(task.id);
                     this.render();
                 }
             });
@@ -151,13 +170,13 @@ class KanbanUI {
             col.addEventListener('dragleave', () => {
                 col.classList.remove('drag-over');
             });
-            col.addEventListener('drop', (e) => {
+            col.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 col.classList.remove('drag-over');
                 const taskId = e.dataTransfer.getData('text/plain');
                 const status = col.getAttribute('data-status');
                 if (taskId && status) {
-                    this.taskManager.updateTaskStatus(taskId, status);
+                    await this.taskManager.updateTaskStatus(taskId, status);
                     this.render();
                 }
             });

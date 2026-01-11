@@ -1,3 +1,12 @@
+// 0 เชื่อมต่อ Supabase
+declare const supabase: any;
+
+const SUPABASE_URL = 'https://ynfaxtwmrmpomwqhzlrm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InluZmF4dHdtcm1wb213cWh6bHJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNTcxMTQsImV4cCI6MjA4MzYzMzExNH0.c8RmSQMGRqvpMuaTSYeXjU6zWzIEV5HRIOf3qJtgeBI';
+
+// สร้างตัวเชื่อมต่อ database เก็บไว้ในตัวแปร db
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 // 1 สร้าง Priority
 enum Priority {
     LOW = 'low',
@@ -17,29 +26,47 @@ interface Task {
     description: string;
     priority: Priority;
     status: Status;
-    createdAt: Date;
+    created_at: string;
 }
 // 4 Class TaskManager ตัวจัดการงานทั้งหมด
 class TaskManager {
-    private tasks: Task[] = []; // เก็บงานทั้งหมดไว้ในนี้
+    private tasks: Task[] = [];
 
-    constructor() {
-        this.loadFromStorage(); //เปิดมาให้โหลดข้อมูลเก่าก่อนเลย
+    // 1 โหลดข้อมูลจาก Cloud (Async: ต้องรอเน็ต)
+
+    public async fetchTasks(): Promise<void> {
+        // สั่ง Database: "ขอ tasks ทั้งหมด เรียงตามวันที่สร้าง"
+        const { data, error } = await db.from('tasks').select('*').order('created_at', { ascending: true }); // เรียงตามเวลา
+        if (error) {
+            console.error('โหลดข้อมูลไม่สำเร็จ:', error);
+            return;
+        }
+
+        this.tasks = data || []; // เอาของที่ได้มาใส่ตัวแปร
+        console.log("โหลดงานจาก Cloud แล้ว", this.tasks);
     }
 
-    // function เพิ่มงานใหม่
-    public addTask(title: string, description: string, priority: Priority): void {
-        const newTask: Task = {
-            id: Date.now().toString(), // สร้าง ID จากเวลาปัจจุบัน
-            title: title,
-            description: description,
-            priority: priority,
-            status: Status.TODO, //งานใหม่ต้องเริ่มที่ TODO
-            createdAt: new Date()
-        };
-        this.tasks.push(newTask);  //ยัดลง Task
-        this.saveToStorage(); // บันทึกทันที
-        console.log("เพิ่มงานแล้ว", newTask);
+    // 2 function เพิ่มงานใหม่
+    public async addTask(title: string, description: string, priority: Priority): Promise<void> {
+        const { data, error } = await db.from('tasks').insert([
+            {
+                title:title,
+                description: description,
+                priority: priority,
+                status: Status.TODO,
+            }
+        ]).select(); // สำคํญ!: สร้างเสร็จแล้วขอข้อมูลที่เพิ่งสร้างกลับมาด้วย (จะได้ ID)
+
+        if (error) {
+            console.log("เพิ่มงานไม่สำเร็จ", error);
+            return;
+        }
+
+        if (data) {
+            // เพิ่มลงในตัวแปร local ของเราด้วย UI จะได้เด้งทันที
+            this.tasks.push(data[0]);
+            console.log("Task added:", data[0]);
+        }
     }
 
     // functionดึงงานทั้งหมด (เอาไว้ให้ UI ไปแสดงผล)
@@ -47,34 +74,34 @@ class TaskManager {
         return this.tasks;
     }
 
-    // function update status ของงาน (ใช้ตอนลาก-วาง)
-    public updateTaskStatus(id: string, newStatus: Status): void {
-        const taskIndex = this.tasks.findIndex(t => t.id === id);
+    //  อัปเดตสถานะ (ลาก-วาง)
+    public async updateTaskStatus(id: string, newStatus: Status): Promise<void> {
+        // อัปเดตในตัวแปร local ก่อน (Trick: เพื่อให้ UI ลื่น ไม่ต้องรอ SErver ตอบกลับ)
+        const task = this.tasks.find(t => t.id === id);
+        if (task) task.status = newStatus;
 
-        if (taskIndex !== -1) {
-            this.tasks[taskIndex].status = newStatus; // เปลี่ยนสถานะ
-            this.saveToStorage(); // บันทึกใหม่
-            console.log("อัปเดตสถานะเรียบร้อย", this.tasks[taskIndex]);
+        // ส่งไปอัปเดตที่ cloud จริงๆ (ถ้าเน็ตหลุดค่อยมา rollback ทีหลัง)
+        const { error } = await db.from('tasks').update({ status: newStatus}).eq('id', id);
+        if (error) {
+            console.log('Error updating:', error);
+            // ให้ดีถ้่าพัง return ค่าด้วย เดี๋ยวค่อยทำ
+        }else {
+            console.log('Status updated:', id, newStatus);
         }
     }
 
-    // --- ส่วนจัดการ LocalStorage (บันทึกลง Browser) ---
-    private saveToStorage(): void {
-        localStorage.setItem('my-kanban-tasks',
-            JSON.stringify(this.tasks));
-    }
+    // 3 ลบงาน 
+    public async deleteTask(id: string): Promise<void> {
+        // ลบ row ที่มี id ตรงกัน
+        const { error } = await db.from('tasks').delete().eq('id', id);
 
-    private loadFromStorage(): void {
-        const data = localStorage.getItem('my-kanban-tasks');
-        if (data) {
-            this.tasks = JSON.parse(data);
+        if (!error) {
+            // ถ้าลบใน Cloud ผ่าน ค่อยมาลบในตัวแปร local
+            this.tasks = this.tasks.filter(t => t.id !== id);
+            console.log("Task deleted:", id);
+        }else {
+            console.log("Error deleting", error);
         }
-    }
-
-    public deleteTask(id: string): void {
-        this.tasks = this.tasks.filter(t => t.id !== id); // กรองเอาเฉพาะอันที่ไม่ใช่ออก
-        this.saveToStorage(); // บันทึกใหม่
-        console.log('ลบงานแล้ว ID:', id);
     }
 }
 
@@ -95,9 +122,13 @@ class KanbanUI {
         this.render(); //วาดหน้าจอครั้งแรก
     }
 
-    private init(): void {
-        // จัดการปุ่ม "เพิ่ม Task"
+    private async init(): Promise<void> {
+        // 1 โหลดข้อมูลจาก Cloud
+        console.log('Loading tasks from Supabase...');
+        await this.taskManager.fetchTasks();
+        this.render();  // โหลดเสร็จค่อยวาด
 
+        // จัดการปุ่ม "เพิ่ม Task"
         const addBtn = document.getElementById('add-task-btn');
         addBtn?.addEventListener('click', () => {
             if (this.modal) this.modal.style.display = 'flex';
@@ -112,7 +143,7 @@ class KanbanUI {
 
         // จัดการ "ฟอร์ม" เวลา Submit
         const form = document.getElementById('task-form') as HTMLFormElement;
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault(); // กันหน้าเว็บ refresh
 
             // ดึงค่าจากช่อง Input
@@ -121,7 +152,7 @@ class KanbanUI {
             const priorityInput = document.getElementById('task-priority') as HTMLSelectElement;
 
             // เรียกใช้ Logic เพื่อเพิ่มงานจริงๆ
-            this.taskManager.addTask(
+            await this.taskManager.addTask(
                 titleInput.value,
                 descInput.value,
                 priorityInput.value as Priority // แปลง string เป็น Enum
@@ -174,15 +205,15 @@ class KanbanUI {
                             ${task.priority}
                         </span>
                     </small>
-                    <small>${new Date(task.createdAt).toLocaleDateString()}</small>
+                    <small>${new Date(task.created_at).toLocaleDateString()}</small>
                 </div>
             `;
 
             // ดักจับการกดปุ่มลบ 
             const deleteBtn = card.querySelector('.delete-btn');
-            deleteBtn?.addEventListener('click', () => {
+            deleteBtn?.addEventListener('click', async () => {
                 if (confirm("ต้องการลบงานนี้จริงไหม?")) {
-                    this.taskManager.deleteTask(task.id); // สั่งลบ
+                    await this.taskManager.deleteTask(task.id); // สั่งลบ
                     this.render(); // สั่งวาดหน้าจอใหม่
                 }
             });
@@ -214,7 +245,7 @@ class KanbanUI {
             });
 
             //3 เมื่อปล่อย drop ลงช่อง
-            col.addEventListener('drop', (e: any) => {
+            col.addEventListener('drop', async(e: any) => {
                 e.preventDefault();
                 col.classList.remove('drag-over');
 
@@ -226,7 +257,7 @@ class KanbanUI {
 
                 // 3 สั่ง update และวาดใหม่
                 if (taskId && status) {
-                    this.taskManager.updateTaskStatus(taskId, status);
+                    await this.taskManager.updateTaskStatus(taskId, status);
                     this.render();
                 }
             });
