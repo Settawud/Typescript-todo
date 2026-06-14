@@ -1,25 +1,18 @@
-// 0 เชื่อมต่อ Supabase
-declare const supabase: any;
+const STORAGE_KEY = 'typescript-kanban-tasks-v1';
+const LEGACY_STORAGE_KEY = 'my-kanban-tasks';
 
-const SUPABASE_URL = 'https://ynfaxtwmrmpomwqhzlrm.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InluZmF4dHdtcm1wb213cWh6bHJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNTcxMTQsImV4cCI6MjA4MzYzMzExNH0.c8RmSQMGRqvpMuaTSYeXjU6zWzIEV5HRIOf3qJtgeBI';
-
-// สร้างตัวเชื่อมต่อ database เก็บไว้ในตัวแปร db
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// 1 สร้าง Priority
 enum Priority {
     LOW = 'low',
     MEDIUM = 'medium',
     HIGH = 'high',
 }
-// 2 สร้าง Status
+
 enum Status {
     TODO = 'todo',
     DOING = 'doing',
     DONE = 'done',
 }
-// 3 Interface สำหรับ Task
+
 interface Task {
     id: string;
     title: string;
@@ -28,318 +21,494 @@ interface Task {
     status: Status;
     created_at: string;
 }
-// 4 Class TaskManager ตัวจัดการงานทั้งหมด
+
+interface TaskUpdates {
+    title: string;
+    description: string;
+    priority: Priority;
+}
+
+const priorityLabels: Record<Priority, string> = {
+    [Priority.LOW]: 'ต่ำ',
+    [Priority.MEDIUM]: 'กลาง',
+    [Priority.HIGH]: 'สูง',
+};
+
+const statusLabels: Record<Status, string> = {
+    [Status.TODO]: 'รอทำ',
+    [Status.DOING]: 'กำลังทำ',
+    [Status.DONE]: 'เสร็จแล้ว',
+};
+
+function createTaskId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isPriority(value: unknown): value is Priority {
+    return Object.values(Priority).includes(value as Priority);
+}
+
+function isStatus(value: unknown): value is Status {
+    return Object.values(Status).includes(value as Status);
+}
+
+function normalizeTask(value: unknown): Task | null {
+    if (typeof value !== 'object' || value === null) {
+        return null;
+    }
+
+    const item = value as Record<string, unknown>;
+    if (typeof item.title !== 'string' || !item.title.trim()) {
+        return null;
+    }
+
+    const rawDate = item.created_at ?? item.createdAt;
+    const parsedDate = typeof rawDate === 'string' ? new Date(rawDate) : new Date();
+    const createdAt = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+
+    return {
+        id: typeof item.id === 'string' && item.id ? item.id : createTaskId(),
+        title: item.title.trim(),
+        description: typeof item.description === 'string' ? item.description : '',
+        priority: isPriority(item.priority) ? item.priority : Priority.LOW,
+        status: isStatus(item.status) ? item.status : Status.TODO,
+        created_at: createdAt.toISOString(),
+    };
+}
+
 class TaskManager {
     private tasks: Task[] = [];
+    private lastError: string | null = null;
 
-    // 1 โหลดข้อมูลจาก Cloud (Async: ต้องรอเน็ต)
-
-    public async fetchTasks(): Promise<void> {
-        // สั่ง Database: "ขอ tasks ทั้งหมด เรียงตามวันที่สร้าง"
-        const { data, error } = await db.from('tasks').select('*').order('created_at', { ascending: true }); // เรียงตามเวลา
-        if (error) {
-            console.error('โหลดข้อมูลไม่สำเร็จ:', error);
-            return;
-        }
-
-        this.tasks = data || []; // เอาของที่ได้มาใส่ตัวแปร
-        console.log("โหลดงานจาก Cloud แล้ว", this.tasks);
+    constructor() {
+        this.loadTasks();
     }
 
-    // 2 function เพิ่มงานใหม่
-    public async addTask(title: string, description: string, priority: Priority): Promise<void> {
-        const { data, error } = await db.from('tasks').insert([
-            {
-                title: title,
-                description: description,
-                priority: priority,
-                status: Status.TODO,
-                created_at: new Date().toISOString(), // ✅ สร้างเวลาปัจจุบันส่งไปด้วย
-            }
-        ]).select(); // สำคํญ!: สร้างเสร็จแล้วขอข้อมูลที่เพิ่งสร้างกลับมาด้วย (จะได้ ID)
-
-        if (error) {
-            console.log("เพิ่มงานไม่สำเร็จ", error);
-            return;
-        }
-
-        if (data) {
-            // เพิ่มลงในตัวแปร local ของเราด้วย UI จะได้เด้งทันที
-            this.tasks.push(data[0]);
-            console.log("Task added:", data[0]);
-        }
-    }
-
-    // functionดึงงานทั้งหมด (เอาไว้ให้ UI ไปแสดงผล)
-    public getAllTask(): Task[] {
+    public getAllTasks(): readonly Task[] {
         return this.tasks;
     }
 
-    //  อัปเดตสถานะ (ลาก-วาง)
-    public async updateTaskStatus(id: string, newStatus: Status): Promise<void> {
-        // อัปเดตในตัวแปร local ก่อน (Trick: เพื่อให้ UI ลื่น ไม่ต้องรอ SErver ตอบกลับ)
-        const task = this.tasks.find(t => t.id === id);
-        if (task) task.status = newStatus;
+    public getLastError(): string | null {
+        return this.lastError;
+    }
 
-        // ส่งไปอัปเดตที่ cloud จริงๆ (ถ้าเน็ตหลุดค่อยมา rollback ทีหลัง)
-        const { error } = await db.from('tasks').update({ status: newStatus }).eq('id', id);
-        if (error) {
-            console.log('Error updating:', error);
-            // ให้ดีถ้่าพัง return ค่าด้วย เดี๋ยวค่อยทำ
-        } else {
-            console.log('Status updated:', id, newStatus);
+    public addTask(title: string, description: string, priority: Priority): boolean {
+        const task: Task = {
+            id: createTaskId(),
+            title: title.trim(),
+            description: description.trim(),
+            priority,
+            status: Status.TODO,
+            created_at: new Date().toISOString(),
+        };
+
+        this.tasks.push(task);
+        if (!this.persistTasks()) {
+            this.tasks.pop();
+            return false;
+        }
+
+        return true;
+    }
+
+    public updateTaskStatus(id: string, newStatus: Status): boolean {
+        const task = this.tasks.find(item => item.id === id);
+        if (!task || task.status === newStatus) {
+            return true;
+        }
+
+        const previousStatus = task.status;
+        task.status = newStatus;
+
+        if (!this.persistTasks()) {
+            task.status = previousStatus;
+            return false;
+        }
+
+        return true;
+    }
+
+    public editTask(id: string, updates: TaskUpdates): boolean {
+        const task = this.tasks.find(item => item.id === id);
+        if (!task) {
+            this.lastError = 'ไม่พบงานที่ต้องการแก้ไข';
+            return false;
+        }
+
+        const previousTask = { ...task };
+        task.title = updates.title.trim();
+        task.description = updates.description.trim();
+        task.priority = updates.priority;
+
+        if (!this.persistTasks()) {
+            Object.assign(task, previousTask);
+            return false;
+        }
+
+        return true;
+    }
+
+    public deleteTask(id: string): boolean {
+        const previousTasks = this.tasks;
+        this.tasks = this.tasks.filter(task => task.id !== id);
+
+        if (!this.persistTasks()) {
+            this.tasks = previousTasks;
+            return false;
+        }
+
+        return true;
+    }
+
+    private loadTasks(): void {
+        try {
+            const currentData = localStorage.getItem(STORAGE_KEY);
+            const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
+            const rawData = currentData ?? legacyData;
+
+            if (!rawData) {
+                return;
+            }
+
+            const parsedData: unknown = JSON.parse(rawData);
+            if (!Array.isArray(parsedData)) {
+                throw new Error('Stored Kanban data is not an array');
+            }
+
+            this.tasks = parsedData
+                .map(normalizeTask)
+                .filter((task): task is Task => task !== null)
+                .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+            if (!currentData) {
+                this.persistTasks();
+            }
+        } catch (error) {
+            console.error('Unable to load Kanban tasks:', error);
+            this.lastError = 'อ่านข้อมูลงานเดิมไม่สำเร็จ แต่ยังสามารถสร้างบอร์ดใหม่ได้';
+            this.tasks = [];
         }
     }
 
-    // 5 แก้ไขรายละเอียดงาน (Title, Description, Priority)
-    public async editTask(id: string, updates: { title: string, description: string, priority: Priority }):
-        Promise<void> {
-        // 1. อัปเดตใน local Grid ของเราก่อน (ให้ UI ลื่น)
-        const task = this.tasks.find(t => t.id === id); // ✅ แก้ให้ถูกต้อง
-        if (task) {
-            task.title = updates.title;
-            task.description = updates.description;
-            task.priority = updates.priority;
-        }
-
-        // 2. ส่งไปอัปเดตที่ cloud จริงๆ (ถ้าเนตหลุดค่อยมา rollback ทีหลัง)
-        const { error } = await db.from('tasks').update(updates).eq('id', id);
-
-        if (error) {
-            console.error("Error editing task:", error);
-        } else {
-            console.log("Task edited:", id);
-        }
-    }
-
-    // 3 ลบงาน 
-    public async deleteTask(id: string): Promise<void> {
-        // ลบ row ที่มี id ตรงกัน
-        const { error } = await db.from('tasks').delete().eq('id', id);
-
-        if (!error) {
-            // ถ้าลบใน Cloud ผ่าน ค่อยมาลบในตัวแปร local
-            this.tasks = this.tasks.filter(t => t.id !== id);
-            console.log("Task deleted:", id);
-        } else {
-            console.log("Error deleting", error);
+    private persistTasks(): boolean {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.tasks));
+            this.lastError = null;
+            return true;
+        } catch (error) {
+            console.error('Unable to save Kanban tasks:', error);
+            this.lastError = 'บันทึกข้อมูลไม่สำเร็จ กรุณาตรวจสอบพื้นที่จัดเก็บของเบราว์เซอร์';
+            return false;
         }
     }
 }
 
-// 5 Test Logic
-const manager = new TaskManager();
-// manager.addTask("เขียนโค้ด", "สนุกจังเลย", Priority.HIGH);
-
-// 6 UI Class: ตัวเชื่อมระหว่าง Logic กับ HTML
 class KanbanUI {
-    private taskManager: TaskManager;
-    private modal: HTMLElement | null; // กล่อง Popup
+    private readonly taskManager = new TaskManager();
+    private readonly modal = this.getElement<HTMLElement>('task-modal');
+    private readonly form = this.getElement<HTMLFormElement>('task-form');
+    private readonly titleInput = this.getElement<HTMLInputElement>('task-title');
+    private readonly descriptionInput = this.getElement<HTMLTextAreaElement>('task-desc');
+    private readonly priorityInput = this.getElement<HTMLSelectElement>('task-priority');
+    private readonly message = this.getElement<HTMLElement>('app-message');
     private currentEditId: string | null = null;
+    private messageTimer: number | null = null;
 
     constructor() {
-        this.taskManager = new TaskManager();
-        this.modal = document.getElementById('task-modal');
-
-        this.init(); // เริ่มทำงาน
-        this.render(); //วาดหน้าจอครั้งแรก
-    }
-
-    private async init(): Promise<void> {
-        // 1 โหลดข้อมูลจาก Cloud
-        console.log('Loading tasks from Supabase...');
-        await this.taskManager.fetchTasks();
-        this.render();  // โหลดเสร็จค่อยวาด
-
-        // จัดการปุ่ม "เพิ่ม Task"
-        const addBtn = document.getElementById('add-task-btn');
-        addBtn?.addEventListener('click', () => {
-            this.currentEditId = null;
-            this.openModal();
-        });
-
-        // จัดการปุ่มปิด Modal
+        this.setupEventListeners();
         this.setupDragDrop();
-        const closeBtn = document.querySelector('.close-btn');
-        closeBtn?.addEventListener('click', () => {
-            if (this.modal) this.modal.style.display = 'none';
-        });
+        this.render();
 
-        // จัดการ "ฟอร์ม" เวลา Submit
-        const form = document.getElementById('task-form') as HTMLFormElement;
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // กันหน้าเว็บ refresh
-
-            // ดึงค่าจากช่อง Input
-            const titleInput = document.getElementById('task-title') as HTMLInputElement;
-            const descInput = document.getElementById('task-desc') as HTMLTextAreaElement;
-            const priorityInput = document.getElementById('task-priority') as HTMLSelectElement;
-
-            // เรียกใช้ Logic เพื่อเพิ่มงานจริงๆ
-            if (this.currentEditId) {
-                //กรณีแก้ไข: เรียก EditTask
-                await this.taskManager.editTask(this.currentEditId, {
-                    title: titleInput.value,
-                    description: descInput.value,
-                    priority: priorityInput.value as Priority
-                });
-            } else {
-                // กรณ๊เพิ่มใหม่ เรียก AddTask
-                await this.taskManager.addTask(
-                    titleInput.value,
-                    descInput.value,
-                    priorityInput.value as Priority // แปลง string เป็น Enum
-                );
-            }
-
-            // ปิด Modal และวาดหน้าจอใหม่
-            if (this.modal) this.modal.style.display = 'none';
-            form.reset(); //ล้างช่องกรอก
-            this.currentEditId = null; // reset id กลับ
-            this.render(); // สั่งวาดการ์ดใหม่
-        });
-    }
-
-    private openModal() {
-        if (this.modal) {
-            this.modal.style.display = 'flex';
-
-            const modalTitle = this.modal.querySelector('h2');
-            if (modalTitle) modalTitle.innerText = this.currentEditId ? 'แก้ไขงาน' : 'เพิ่มงาน';
+        const loadError = this.taskManager.getLastError();
+        if (loadError) {
+            this.showMessage(loadError, 'error');
         }
     }
 
-    private openEditModal(task: Task) {
-        this.currentEditId = task.id; // จำไว้ว่ากำลังแก้งานไหน
-        this.openModal(); //เปิดกล่อง
+    private getElement<T extends HTMLElement>(id: string): T {
+        const element = document.getElementById(id);
+        if (!element) {
+            throw new Error(`Missing required element: #${id}`);
+        }
 
-        // เอางานเก่ามาหยอดใส่ช่อง
-        const titleInput = document.getElementById('task-title') as HTMLInputElement;
-        const descInput = document.getElementById('task-desc') as HTMLTextAreaElement;
-        const priorityInput = document.getElementById('task-priority') as HTMLSelectElement;
-
-        if (titleInput) titleInput.value = task.title;
-        if (descInput) descInput.value = task.description;
-        if (priorityInput) priorityInput.value = task.priority;
+        return element as T;
     }
 
-    // Helper: แปลงวันที่เป็นแบบไทย (เช่น 11 มกราคม 2569)
+    private setupEventListeners(): void {
+        this.getElement<HTMLButtonElement>('add-task-btn').addEventListener('click', () => {
+            this.openAddModal();
+        });
+
+        this.getElement<HTMLButtonElement>('close-modal-btn').addEventListener('click', () => {
+            this.closeModal();
+        });
+
+        this.modal.addEventListener('click', event => {
+            if (event.target === this.modal) {
+                this.closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && this.modal.getAttribute('aria-hidden') === 'false') {
+                this.closeModal();
+            }
+        });
+
+        this.form.addEventListener('submit', event => {
+            event.preventDefault();
+            this.saveForm();
+        });
+    }
+
+    private openAddModal(): void {
+        this.currentEditId = null;
+        this.form.reset();
+        this.openModal('เพิ่มงาน');
+    }
+
+    private openEditModal(task: Task): void {
+        this.currentEditId = task.id;
+        this.titleInput.value = task.title;
+        this.descriptionInput.value = task.description;
+        this.priorityInput.value = task.priority;
+        this.openModal('แก้ไขงาน');
+    }
+
+    private openModal(title: string): void {
+        this.getElement<HTMLElement>('modal-title').textContent = title;
+        this.modal.style.display = 'flex';
+        this.modal.setAttribute('aria-hidden', 'false');
+        this.titleInput.focus();
+    }
+
+    private closeModal(): void {
+        this.modal.style.display = 'none';
+        this.modal.setAttribute('aria-hidden', 'true');
+        this.currentEditId = null;
+        this.form.reset();
+    }
+
+    private saveForm(): void {
+        const title = this.titleInput.value.trim();
+        if (!title) {
+            this.titleInput.focus();
+            return;
+        }
+
+        const updates: TaskUpdates = {
+            title,
+            description: this.descriptionInput.value,
+            priority: this.priorityInput.value as Priority,
+        };
+
+        const saved = this.currentEditId
+            ? this.taskManager.editTask(this.currentEditId, updates)
+            : this.taskManager.addTask(updates.title, updates.description, updates.priority);
+
+        if (!saved) {
+            this.showMessage(this.taskManager.getLastError() ?? 'บันทึกงานไม่สำเร็จ', 'error');
+            return;
+        }
+
+        this.closeModal();
+        this.render();
+        this.showMessage('บันทึกงานเรียบร้อยแล้ว', 'success');
+    }
+
     private formatDate(isoString: string): string {
-        const date = new Date(isoString);
-        return date.toLocaleDateString('th-TH', {
+        return new Date(isoString).toLocaleDateString('th-TH', {
             year: 'numeric',
-            month: 'long',
+            month: 'short',
             day: 'numeric',
         });
     }
 
-    // function วาดการ์ดงาน (จะมาเติมทีหลัง)
     private render(): void {
-        console.log("Rendering tasks...", this.taskManager.getAllTask());
+        const lists: Record<Status, HTMLElement> = {
+            [Status.TODO]: this.getElement<HTMLElement>('todo-list'),
+            [Status.DOING]: this.getElement<HTMLElement>('doing-list'),
+            [Status.DONE]: this.getElement<HTMLElement>('done-list'),
+        };
 
-        // 1 ดึงกล่องทั้ง 3 ช่องมาเตรียมไว้
-        const todoList = document.getElementById('todo-list');
-        const doingList = document.getElementById('doing-list');
-        const doneList = document.getElementById('done-list');
+        Object.values(lists).forEach(list => list.replaceChildren());
 
-        // 2 ล้างข้อมูลเก่าทิ้งก่อน (เพื่อไม่ให้แสดงซ้ำ)
-        if (todoList) todoList.innerHTML = '';
-        if (doingList) doingList.innerHTML = '';
-        if (doneList) doneList.innerHTML = '';
+        const counts: Record<Status, number> = {
+            [Status.TODO]: 0,
+            [Status.DOING]: 0,
+            [Status.DONE]: 0,
+        };
 
-        // 3 ดึงข้อมูลทั้งหมดมาวาด
-        this.taskManager.getAllTask().forEach(task => {
-            // สร้าง Element <div> เป็นการ์ด
-            const card = document.createElement('div');
-            card.className = 'task-card'; // ใส่ class ให้ CSS
+        this.taskManager.getAllTasks().forEach(task => {
+            lists[task.status].appendChild(this.createTaskCard(task));
+            counts[task.status] += 1;
+        });
 
-            card.draggable = true;
-            card.addEventListener('dragstart', (e: DragEvent) => {
-                // ส่ง ID ของงานแนบไปกับการลาก
-                e.dataTransfer?.setData('text/plain', task.id);
-                card.classList.add('dragging'); // 
-            });
+        Object.values(Status).forEach(status => {
+            this.getElement<HTMLElement>(`${status}-count`).textContent = String(counts[status]);
 
-            card.innerHTML = `
-                <div style="display: flex; justify-content: space-between;">
-                    <h3>${task.title}</h3>
-                    <div class='actions'>
-                        <button class='edit-btn'>✏️</button>
-                        <button class='delete-btn'>❌</button>
-                    </div>
-                </div>
-                <p>${task.description}</p>
-                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                    <small>
-                        Priority: 
-                        <span class="priority-badge priority-${task.priority}">
-                            ${task.priority}
-                        </span>
-                    </small>
-                    <small>${this.formatDate(task.created_at)}</small>
-                </div>
-            `;
-
-            // ดักจับการกดปุ่มลบ 
-            const deleteBtn = card.querySelector('.delete-btn');
-            deleteBtn?.addEventListener('click', async () => {
-                if (confirm("ต้องการลบงานนี้จริงไหม?")) {
-                    await this.taskManager.deleteTask(task.id); // สั่งลบ
-                    this.render(); // สั่งวาดหน้าจอใหม่
-                }
-            });
-            const editBtn = card.querySelector('.edit-btn');
-            editBtn?.addEventListener('click', async () => {
-                console.log("กำลังแก้ไขงาน ID:", task.id);
-                this.openEditModal(task);
-            })
-
-            // 4 เช็ค status แล้วหยอดลงช่องที่ถูกต้อง
-            if (task.status === Status.TODO && todoList) {
-                todoList.appendChild(card);
-            } else if (task.status === Status.DOING && doingList) {
-                doingList.appendChild(card);
-            } else if (task.status === Status.DONE && doneList) {
-                doneList.appendChild(card);
+            if (counts[status] === 0) {
+                const emptyState = document.createElement('p');
+                emptyState.className = 'empty-state';
+                emptyState.textContent = status === Status.TODO
+                    ? 'ยังไม่มีงาน กด “เพิ่มงานใหม่” เพื่อเริ่มต้น'
+                    : 'ยังไม่มีงานในสถานะนี้';
+                lists[status].appendChild(emptyState);
             }
         });
     }
 
+    private createTaskCard(task: Task): HTMLElement {
+        const card = document.createElement('article');
+        card.className = 'task-card';
+        card.draggable = true;
+
+        card.addEventListener('dragstart', event => {
+            event.dataTransfer?.setData('text/plain', task.id);
+            event.dataTransfer?.setData('application/x-kanban-task', task.id);
+            card.classList.add('dragging');
+        });
+
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+
+        const header = document.createElement('div');
+        header.className = 'task-card-header';
+
+        const title = document.createElement('h3');
+        title.textContent = task.title;
+        header.appendChild(title);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'edit-btn';
+        editButton.setAttribute('aria-label', `แก้ไขงาน ${task.title}`);
+        editButton.textContent = '✏️';
+        editButton.addEventListener('click', () => this.openEditModal(task));
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'delete-btn';
+        deleteButton.setAttribute('aria-label', `ลบงาน ${task.title}`);
+        deleteButton.textContent = '🗑️';
+        deleteButton.addEventListener('click', () => {
+            if (!confirm(`ต้องการลบงาน “${task.title}” ใช่ไหม?`)) {
+                return;
+            }
+
+            if (!this.taskManager.deleteTask(task.id)) {
+                this.showMessage(this.taskManager.getLastError() ?? 'ลบงานไม่สำเร็จ', 'error');
+                return;
+            }
+
+            this.render();
+            this.showMessage('ลบงานเรียบร้อยแล้ว', 'success');
+        });
+
+        actions.append(editButton, deleteButton);
+        header.appendChild(actions);
+
+        const description = document.createElement('p');
+        description.className = 'task-description';
+        description.textContent = task.description || 'ไม่มีรายละเอียด';
+
+        const meta = document.createElement('div');
+        meta.className = 'task-meta';
+
+        const priority = document.createElement('span');
+        priority.className = `priority-badge priority-${task.priority}`;
+        priority.textContent = `ความสำคัญ${priorityLabels[task.priority]}`;
+
+        const date = document.createElement('time');
+        date.dateTime = task.created_at;
+        date.textContent = this.formatDate(task.created_at);
+
+        meta.append(priority, date);
+
+        const statusLabel = document.createElement('label');
+        statusLabel.className = 'status-control';
+        statusLabel.textContent = 'สถานะ';
+
+        const statusSelect = document.createElement('select');
+        statusSelect.setAttribute('aria-label', `สถานะของงาน ${task.title}`);
+        Object.values(Status).forEach(status => {
+            const option = document.createElement('option');
+            option.value = status;
+            option.textContent = statusLabels[status];
+            option.selected = status === task.status;
+            statusSelect.appendChild(option);
+        });
+
+        statusSelect.addEventListener('change', () => {
+            const updated = this.taskManager.updateTaskStatus(task.id, statusSelect.value as Status);
+            if (!updated) {
+                this.showMessage(this.taskManager.getLastError() ?? 'เปลี่ยนสถานะไม่สำเร็จ', 'error');
+            }
+            this.render();
+        });
+
+        statusLabel.appendChild(statusSelect);
+        card.append(header, description, meta, statusLabel);
+        return card;
+    }
+
     private setupDragDrop(): void {
-        const columns = document.querySelectorAll('.column');
+        const columns = document.querySelectorAll<HTMLElement>('.column');
 
-        columns.forEach(col => {
-            // 1 เมื่อลากของมาจ่อเหนือช่อง
-            col.addEventListener('dragover', (e: any) => {
-                e.preventDefault(); // ใส่บรรทัดนี้เพื่อให้วางได้!
-                col.classList.add('drag-over'); // ใส่ Effect ไฮไลท์
+        columns.forEach(column => {
+            column.addEventListener('dragover', event => {
+                event.preventDefault();
+                column.classList.add('drag-over');
             });
 
-            // 2 เมื่อลากของหนีไป (Drag Leave)
-            col.addEventListener('dragleave', () => {
-                col.classList.remove('drag-over');
-            });
-
-            //3 เมื่อปล่อย drop ลงช่อง
-            col.addEventListener('drop', async (e: any) => {
-                e.preventDefault();
-                col.classList.remove('drag-over');
-
-                //1 ดึง ID ที่แนบมา
-                const taskId = e.dataTransfer.getData('text/plain');
-
-                //2 ดูว่าตอนนี้ status อะไร (ดึงมาจาก data-status)
-                const status = col.getAttribute('data-status') as Status;
-
-                // 3 สั่ง update และวาดใหม่
-                if (taskId && status) {
-                    await this.taskManager.updateTaskStatus(taskId, status);
-                    this.render();
+            column.addEventListener('dragleave', event => {
+                if (!column.contains(event.relatedTarget as Node | null)) {
+                    column.classList.remove('drag-over');
                 }
+            });
+
+            column.addEventListener('drop', event => {
+                event.preventDefault();
+                column.classList.remove('drag-over');
+
+                const taskId = event.dataTransfer?.getData('application/x-kanban-task')
+                    || event.dataTransfer?.getData('text/plain');
+                const status = column.dataset.status;
+
+                if (!taskId || !isStatus(status)) {
+                    return;
+                }
+
+                if (!this.taskManager.updateTaskStatus(taskId, status)) {
+                    this.showMessage(this.taskManager.getLastError() ?? 'ย้ายงานไม่สำเร็จ', 'error');
+                }
+                this.render();
             });
         });
     }
+
+    private showMessage(text: string, type: 'success' | 'error'): void {
+        if (this.messageTimer !== null) {
+            window.clearTimeout(this.messageTimer);
+        }
+
+        this.message.textContent = text;
+        this.message.className = `app-message app-message-${type}`;
+        this.message.hidden = false;
+
+        this.messageTimer = window.setTimeout(() => {
+            this.message.hidden = true;
+            this.messageTimer = null;
+        }, 3500);
+    }
 }
 
-// 7. เริ่มต้นแอพ
 new KanbanUI();

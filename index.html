@@ -1,73 +1,65 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeScript Kanban</title>
+    <meta name="description" content="Kanban Board สำหรับจัดการงานแบบง่าย ข้อมูลบันทึกในเบราว์เซอร์">
+    <title>TypeScript Kanban Board</title>
     <link rel="stylesheet" href="style.css">
-    <!-- ✅ 1. เพิ่ม Supabase CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
     <header class="header">
-        <h1>📋 TypeScript Kanban Board</h1>
-        <button id="add-task-btn">➕ เพิ่มงานใหม่</button>
+        <div>
+            <h1>📋 TypeScript Kanban Board</h1>
+            <p>จัดระเบียบงานของคุณในที่เดียว</p>
+        </div>
+        <button id="add-task-btn" class="btn-primary" type="button">➕ เพิ่มงานใหม่</button>
     </header>
+    <div id="app-message" class="app-message" role="status" aria-live="polite" hidden></div>
     <main class="kanban-board">
-        <!-- มี 3 column TODO DOING DONE -->
         <section class="column" id="todo-col" data-status="todo">
-            <h2>📝 รอทำ</h2>
-            <div class="task-list" id="todo-list">
-                <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
-            </div>
+            <h2>📝 รอทำ <span id="todo-count" class="task-count">0</span></h2>
+            <div class="task-list" id="todo-list"></div>
         </section>
 
         <section class="column" id="doing-col" data-status="doing">
-            <h2>🧑🏻‍💻 กำลังทำ</h2>
-            <div class="task-list" id="doing-list">
-                <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
-
-            </div>
+            <h2>🧑🏻‍💻 กำลังทำ <span id="doing-count" class="task-count">0</span></h2>
+            <div class="task-list" id="doing-list"></div>
         </section>
 
         <section class="column" id="done-col" data-status="done">
-            <h2>✅ เสร็จแล้ว</h2>
-            <div class="task-list" id="done-list">
-                <!-- ใช้ ts ยัด task เข้ามาตรงนี้ -->
-            </div>
+            <h2>✅ เสร็จแล้ว <span id="done-count" class="task-count">0</span></h2>
+            <div class="task-list" id="done-list"></div>
         </section>
     </main>
 
-    <!-- Modal (Popup Form) -->
-    <div id="task-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h2>เพิ่มงานใหม่</h2>
+    <div id="task-modal" class="modal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+            <button id="close-modal-btn" class="close-btn" type="button" aria-label="ปิด">&times;</button>
+            <h2 id="modal-title">เพิ่มงาน</h2>
             <form id="task-form">
+                <label for="task-title">ชื่องาน</label>
+                <input type="text" id="task-title" placeholder="เช่น เตรียมสไลด์นำเสนอ" maxlength="120" required>
 
-                <!-- 1 ชื่อ Task -->
-                <input type="text" id="task-title" placeholder="ชื่องาน..." required>
+                <label for="task-desc">รายละเอียด</label>
+                <textarea id="task-desc" placeholder="รายละเอียดเพิ่มเติม..." maxlength="1000"></textarea>
 
-                <!-- 2 รายละเอียด -->
-                <textarea id="task-desc" placeholder="รายละเอียด..."></textarea>
-
-                <!-- 3 ความสำคัญ -->
+                <label for="task-priority">ความสำคัญ</label>
                 <select id="task-priority">
                     <option value="low">ต่ำ</option>
                     <option value="medium">กลาง</option>
                     <option value="high">สูง</option>
                 </select>
 
-                <!-- 4 ปุ่มบันทึก -->
-                <button type="submit">บันทึก</button>
+                <button class="btn-primary submit-btn" type="submit">บันทึกงาน</button>
             </form>
         </div>
     </div>
 
     <footer class="footer">
-        <p>Dev by Best!</p>
+        <p>ข้อมูลบันทึกในเบราว์เซอร์นี้ • Dev by Best!</p>
     </footer>
     <script src="./dist/app.js"></script>
 </body>

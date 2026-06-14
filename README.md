@@ -1,8 +1,8 @@
-# 📋 TypeScript Cloud Kanban Board
+# 📋 TypeScript Kanban Board
 
-Web Application สำหรับบริหารจัดการงานแบบ **Kanban Board** (To Do / Doing / Done) ที่พัฒนาด้วย **TypeScript** และเชื่อมต่อข้อมูลจริงบน Cloud ด้วย **Supabase**
+Web Application สำหรับบริหารจัดการงานแบบ **Kanban Board** (To Do / Doing / Done) ที่พัฒนาด้วย **TypeScript** และบันทึกข้อมูลในเบราว์เซอร์ด้วย Local Storage
 
-![Project Preview](https://typescript-todo-fawn.vercel.app/)
+[เปิดใช้งานเว็บ](https://typescript-todo-fawn.vercel.app/)
 
 
 ---
@@ -10,8 +10,9 @@ Web Application สำหรับบริหารจัดการงาน�
 ## ✨ Features (ฟีเจอร์หลัก)
 
 *   **⚡️ TypeScript Powered:** เขียนด้วย TypeScript 100% เน้น Type Safety และ OOP Design Pattern (Class-based)
-*   **☁️ Cloud Real-time Database:** เชื่อมต่อกับ **Supabase** ทำให้ข้อมูลไม่หายเมื่อ Refresh หรือปิดหน้าเว็บ
+*   **💾 Browser Persistence:** ข้อมูลยังอยู่เมื่อ Refresh หรือปิดหน้าเว็บ โดยไม่ต้องพึ่งบริการภายนอก
 *   **🖱️ Drag & Drop Interface:** สามารถลากย้ายงานข้าม Column ได้ลื่นไหล (Todo -> Doing -> Done)
+*   **📲 Mobile Status Control:** เปลี่ยนสถานะผ่านเมนูบนการ์ดได้สะดวกบนมือถือ
 *   **📱 Fully Responsive:** รองรับการใช้งานบนมือถือ (iPhone 15 Pro Max Ready) ด้วย UI แบบ Adaptive
 *   **✏️ CRUD Operations:** สามารถ เพิ่ม (Add), แก้ไข (Edit), และ ลบ (Delete) งานได้ครบวงจร
 *   **🎨 Glassmorphism & Modern UI:** ดีไซน์ทันสมัย สะอาดตา ใช้งานง่าย
@@ -21,7 +22,7 @@ Web Application สำหรับบริหารจัดการงาน�
 ## 🛠️ Tech Stack (เทคโนโลยีที่ใช้)
 
 *   **Frontend:** HTML5, CSS3 (Flexbox/Grid), TypeScript
-*   **Backend / Database:** Supabase (PostgreSQL)
+*   **Storage:** Browser Local Storage
 *   **Build Tool:** TypeScript Compiler (`tsc`), Live Server
 
 ---
@@ -34,20 +35,20 @@ Web Application สำหรับบริหารจัดการงาน�
     cd Typescript-todo
     ```
 
-2.  **Install Dependencies** (ถ้ามี)
+2.  **Build TypeScript**
     ```bash
-    npm install
+    tsc
     ```
 
 3.  **Run Application**
     *   เนื่องจากเป็น Static Web สามารถเปิดไฟล์ `index.html` หรือใช้ Live Server ได้เลย
     *   **Development Mode:**
         ```bash
-        npx live-server .
+        python3 -m http.server 4173
         ```
     *   **Watch TypeScript:**
         ```bash
-        tsc -w
+        tsc --watch
         ```
 
 ---
